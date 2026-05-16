@@ -1,0 +1,52 @@
+/* CameraPlugin Styles v1.0.0 */
+
+.camera-plugin-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 640px;
+    aspect-ratio: 16 / 9;
+    background: #0a0a0a;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.camera-plugin-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scaleX(1); /* flip for front cam via JS if needed */
+}
+
+.camera-plugin-canvas {
+    display: none;
+}
+
+.camera-plugin-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1rem;
+    font-family: system-ui, sans-serif;
+    font-size: 0.95rem;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+}
+
+.camera-plugin-overlay--error {
+    color: #ff6b6b;
+    background: rgba(30, 0, 0, 0.75);
+}
+
+.camera-plugin-overlay--info {
+    color: #aad4f5;
+}
