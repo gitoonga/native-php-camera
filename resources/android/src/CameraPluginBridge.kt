@@ -5,8 +5,11 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import androidx.core.app.ActivityCompat
+import androidx.core.content.getSystemService
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
 
@@ -34,7 +37,6 @@ class CameraPluginBridge(
 ) {
 
     companion object {
-        const val CAMERA_PERMISSION_REQUEST_CODE = 1001
         const val JS_INTERFACE_NAME = "Android"
         private const val PREFS_KEY = "camera_plugin_prefs"
         private const val PREF_PERMISSION_ASKED = "permission_asked"
@@ -60,6 +62,36 @@ class CameraPluginBridge(
      */
     fun detach() {
         webView.removeJavascriptInterface(JS_INTERFACE_NAME)
+    }
+
+    /**
+     * Returns a WebChromeClient that auto-grants WebView-level camera/mic
+     * permissions (RESOURCE_VIDEO_CAPTURE / RESOURCE_AUDIO_CAPTURE) for
+     * getUserMedia calls from JS (e.g. html5-qrcode).
+     *
+     * Optionally wraps an existing [base] WebChromeClient so that other
+     * chrome callbacks (JS alerts, etc.) are preserved.
+     *
+     * Usage:
+     *   webView.webChromeClient = bridge.createCameraAwareChromeClient()
+     *
+     *   // Or wrap an existing client:
+     *   webView.webChromeClient = bridge.createCameraAwareChromeClient(myChromeClient)
+     */
+    fun createCameraAwareChromeClient(base: WebChromeClient? = null): WebChromeClient {
+        return object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                val allowed = request.resources.filter {
+                    it == PermissionRequest.RESOURCE_VIDEO_CAPTURE ||
+                    it == PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                }.toTypedArray()
+                if (allowed.isNotEmpty()) {
+                    request.grant(allowed)
+                } else {
+                    base?.onPermissionRequest(request) ?: request.deny()
+                }
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -120,8 +152,8 @@ class CameraPluginBridge(
             put("sdkVersion",    android.os.Build.VERSION.SDK_INT)
             put("manufacturer",  android.os.Build.MANUFACTURER)
             put("model",         android.os.Build.MODEL)
-            put("hasFrontCamera", hasCameraFacing(android.hardware.Camera.CameraInfo.CAMERA_FACING_FRONT))
-            put("hasBackCamera",  hasCameraFacing(android.hardware.Camera.CameraInfo.CAMERA_FACING_BACK))
+            put("hasFrontCamera", hasCameraFacing(android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT))
+            put("hasBackCamera",  hasCameraFacing(android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK))
         }.toString()
     }
 
@@ -166,7 +198,7 @@ class CameraPluginBridge(
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
-        if (requestCode != CAMERA_PERMISSION_REQUEST_CODE) return
+        if (requestCode != config.requestCode) return
 
         val granted = grantResults.isNotEmpty() &&
                 grantResults[0] == PackageManager.PERMISSION_GRANTED
@@ -185,7 +217,7 @@ class CameraPluginBridge(
         } else {
             arrayOf(Manifest.permission.CAMERA)
         }
-        ActivityCompat.requestPermissions(activity, permissions, CAMERA_PERMISSION_REQUEST_CODE)
+        ActivityCompat.requestPermissions(activity, permissions, config.requestCode)
     }
 
     private fun onPermissionResult(granted: Boolean, fromCache: Boolean) {
@@ -225,13 +257,12 @@ class CameraPluginBridge(
     private fun wasAlreadyAsked(): Boolean =
         prefs.getBoolean(PREF_PERMISSION_ASKED, false)
 
-    @Suppress("DEPRECATION")
     private fun hasCameraFacing(facing: Int): Boolean {
         return try {
-            val info = android.hardware.Camera.CameraInfo()
-            for (i in 0 until android.hardware.Camera.getNumberOfCameras()) {
-                android.hardware.Camera.getCameraInfo(i, info)
-                if (info.facing == facing) return true
+            val manager = activity.getSystemService<android.hardware.camera2.CameraManager>() ?: return false
+            for (cameraId in manager.cameraIdList) {
+                val characteristics = manager.getCameraCharacteristics(cameraId)
+                if (characteristics.get(android.hardware.camera2.CameraCharacteristics.LENS_FACING) == facing) return true
             }
             false
         } catch (e: Exception) { false }

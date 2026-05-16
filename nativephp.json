@@ -1,14 +1,9 @@
 {
     "namespace": "CameraPlugin",
-    "bridge_functions": [
-        {
-            "name": "CameraPlugin.GetDeviceInfo",
-            "android": "com.cameraplugin.CameraPluginBridge.getDeviceInfo",
-            "description": "Get device camera hardware info (front/back camera, SDK version, manufacturer, model)"
-        }
-    ],
+    "bridge_functions": [],
     "android": {
         "min_version": 21,
+        "request_code": 1003,
         "permissions": [
             "android.permission.CAMERA",
             "android.permission.INTERNET"
